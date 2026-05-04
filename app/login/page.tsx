@@ -1,10 +1,11 @@
 import { LoginForm } from '@/components/auth/LoginForm';
-import { getSupabaseEnv, hasSupabaseEnv } from '@/lib/supabase/env';
+import { getAppUrl, getSupabaseEnv, hasSupabaseEnv } from '@/lib/supabase/env';
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; reason?: string }> }) {
   const params = await searchParams;
   const envReady = hasSupabaseEnv();
   const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseEnv();
+  const appUrl = getAppUrl();
   const nextPath = params.next && params.next.startsWith('/') ? params.next : '/dashboard';
   const missingEnv = params.reason === 'missing_supabase_env' || !envReady;
 
@@ -19,7 +20,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             Supabase public environment variables are missing in this environment. Configure them before production sign-in.
           </div>
         ) : null}
-        <LoginForm nextPath={nextPath} supabaseUrl={supabaseUrl} supabaseAnonKey={supabaseAnonKey} />
+        <LoginForm nextPath={nextPath} supabaseUrl={supabaseUrl} supabaseAnonKey={supabaseAnonKey} appUrl={appUrl} />
       </section>
     </main>
   );
