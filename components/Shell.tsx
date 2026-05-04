@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BarChart3, Bot, Gauge, MessageSquare, Settings, ShieldCheck } from 'lucide-react';
+import { BarChart3, Bot, Gauge, LogOut, MessageSquare, Settings, ShieldCheck } from 'lucide-react';
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: Gauge },
@@ -28,6 +28,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
+        <form action="/auth/sign-out" method="post" className="mx-4 mb-4">
+          <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
+            <LogOut size={16} /> Sign out
+          </button>
+        </form>
         <div className="mx-4 mb-5 hidden rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-950 lg:block">
           <div className="mb-2 flex items-center gap-2 font-bold"><ShieldCheck size={16} /> Safe first slice</div>
           Read-only dashboard shell. No bot tokens, no webhooks, no lifecycle controls.
