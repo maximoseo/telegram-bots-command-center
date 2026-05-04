@@ -6,6 +6,30 @@ const authRoutes = ['/login'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === '/') {
+    const code = request.nextUrl.searchParams.get('code');
+    const error = request.nextUrl.searchParams.get('error');
+    const errorCode = request.nextUrl.searchParams.get('error_code');
+    const errorDescription = request.nextUrl.searchParams.get('error_description');
+
+    if (code) {
+      const callbackUrl = new URL('/auth/callback', request.url);
+      callbackUrl.searchParams.set('code', code);
+      callbackUrl.searchParams.set('next', '/dashboard');
+      return NextResponse.redirect(callbackUrl);
+    }
+
+    if (error || errorCode || errorDescription) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('next', '/dashboard');
+      if (error) loginUrl.searchParams.set('error', error);
+      if (errorCode) loginUrl.searchParams.set('error_code', errorCode);
+      if (errorDescription) loginUrl.searchParams.set('error_description', errorDescription);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
   const isProtected = protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
   const isAuthRoute = authRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
@@ -60,5 +84,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/bots/:path*', '/conversations/:path*', '/analytics/:path*', '/settings/:path*', '/login']
+  matcher: ['/', '/dashboard/:path*', '/bots/:path*', '/conversations/:path*', '/analytics/:path*', '/settings/:path*', '/login']
 };
