@@ -7,9 +7,10 @@ type LoginFormProps = {
   nextPath: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
+  appUrl: string;
 };
 
-export function LoginForm({ nextPath, supabaseUrl, supabaseAnonKey }: LoginFormProps) {
+export function LoginForm({ nextPath, supabaseUrl, supabaseAnonKey, appUrl }: LoginFormProps) {
   const envReady = Boolean(supabaseUrl && supabaseAnonKey);
   const supabase = useMemo(
     () => createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey),
@@ -30,8 +31,8 @@ export function LoginForm({ nextPath, supabaseUrl, supabaseAnonKey }: LoginFormP
       return;
     }
 
-    const origin = window.location.origin;
-    const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPath || '/dashboard')}`;
+    const safeAppUrl = (appUrl || window.location.origin || 'https://tg-command-center.maximo-seo.ai').replace(/\/$/, '');
+    const redirectTo = `${safeAppUrl}/auth/callback?next=${encodeURIComponent(nextPath || '/dashboard')}`;
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: redirectTo }
