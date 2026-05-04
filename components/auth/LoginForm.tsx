@@ -3,8 +3,18 @@
 import { useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
-export function LoginForm({ nextPath, envReady }: { nextPath: string; envReady: boolean }) {
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+type LoginFormProps = {
+  nextPath: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+};
+
+export function LoginForm({ nextPath, supabaseUrl, supabaseAnonKey }: LoginFormProps) {
+  const envReady = Boolean(supabaseUrl && supabaseAnonKey);
+  const supabase = useMemo(
+    () => createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey),
+    [supabaseUrl, supabaseAnonKey]
+  );
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'sent' | 'error'>('idle');
   const [message, setMessage] = useState('');
