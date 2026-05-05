@@ -10,13 +10,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const missingEnv = params.reason === 'missing_supabase_env' || !envReady;
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600">Login</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight">Command Center access</h1>
-        <p className="mt-3 text-slate-600">Sign in with a Supabase magic link. Dashboard routes are protected after this step.</p>
+    <main className="flex min-h-screen items-center justify-center px-4 py-8">
+      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-soft transition-colors dark:border-dark-border dark:bg-dark-surface dark:shadow-none">
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-600 dark:text-blue-300">Login</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 dark:text-dark-text">Command Center access</h1>
+        <p className="mt-3 text-slate-600 dark:text-dark-muted">Sign in with a Supabase magic link. Dashboard routes are protected after this step.</p>
         {missingEnv ? (
-          <div className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+          <div className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
             Supabase public environment variables are missing in this environment. Configure them before production sign-in.
           </div>
         ) : null}
