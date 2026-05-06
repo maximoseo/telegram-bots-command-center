@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { DataNotice, EmptyState } from '@/components/DataNotice';
 import { DashboardSkeleton } from '@/components/Skeleton';
 import { getDashboardMetrics, getBots } from '@/lib/supabase/queries';
+import type { Bot as BotType } from '@/types/prompt';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { Bot, MessageSquare, BarChart3 } from 'lucide-react';
 import { redirect } from 'next/navigation';
@@ -16,9 +17,9 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  let metrics;
-  let bots;
-  let error = null;
+  let metrics: Awaited<ReturnType<typeof getDashboardMetrics>> | null = null;
+  let bots: BotType[] = [];
+  let error: string | null = null;
 
   try {
     [metrics, bots] = await Promise.all([
@@ -39,9 +40,9 @@ export default async function DashboardPage() {
     );
   }
 
-  const activeBots = bots.filter((bot) => bot.status === 'online').length;
-  const totalCost = metrics.tokenUsage?.reduce((sum, item) => sum + (item.total_cost || 0), 0) || 0;
-  const totalMessages = metrics.tokenUsage?.reduce((sum, item) => sum + (item.total_tokens || 0), 0) || 0;
+  const activeBots = (bots || []).filter((bot) => bot.status === 'online').length;
+  const totalCost = (metrics?.tokenUsage || []).reduce((sum, item) => sum + (item.total_cost || 0), 0);
+  const totalMessages = (metrics?.tokenUsage || []).reduce((sum, item) => sum + (item.total_tokens || 0), 0);
 
   return (
     <Shell>
@@ -63,12 +64,12 @@ export default async function DashboardPage() {
         />
         <MetricCard 
           label="Total conversations" 
-          value={metrics.totalConversations.toLocaleString()} 
+          value={metrics?.totalConversations?.toLocaleString() ?? '0'} 
           hint="Across all bots"
         />
         <MetricCard 
           label="Total messages" 
-          value={metrics.totalMessages.toLocaleString()} 
+          value={metrics?.totalMessages?.toLocaleString() ?? '0'} 
           hint="All time"
         />
         <MetricCard 
@@ -122,7 +123,7 @@ export default async function DashboardPage() {
         <div className="rounded-xl border border-line bg-bg-elevated p-5 shadow-sm">
           <h3 className="text-lg font-black text-text mb-4">Recent activity</h3>
           
-          {metrics.recentConversations?.length === 0 ? (
+          {(metrics?.recentConversations || []).length === 0 ? (
             <EmptyState
               icon={<MessageSquare className="h-6 w-6" />}
               title="No conversations yet"
@@ -130,7 +131,7 @@ export default async function DashboardPage() {
             />
           ) : (
             <div className="space-y-3">
-              {metrics.recentConversations?.map((conv) => (
+              {(metrics?.recentConversations || []).map((conv) => (
                 <div key={conv.id} className="rounded-xl bg-bg p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-text text-sm">{conv.message_count} messages</span>
@@ -149,11 +150,11 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {metrics.tokenUsage?.length > 0 && (
+      {((metrics?.tokenUsage || []).length > 0) && (
         <section className="mt-6 rounded-xl border border-line bg-bg-elevated p-5 shadow-sm">
           <h3 className="text-lg font-black text-text mb-4">Token usage (last 7 days)</h3>
           <div className="space-y-2">
-            {metrics.tokenUsage.map((day) => (
+            {(metrics?.tokenUsage || []).map((day) => (
               <div key={day.usage_date} className="flex items-center gap-4">
                 <span className="text-sm text-muted w-24">{new Date(day.usage_date).toLocaleDateString()}</span>
                 <div className="flex-1 h-8 bg-bg-sunken rounded-lg overflow-hidden">

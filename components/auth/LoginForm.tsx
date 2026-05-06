@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -109,7 +111,7 @@ export function LoginForm({ redirectTo = '/dashboard' }: LoginFormProps) {
       </Button>
 
       <p className="text-xs text-center text-muted">
-        We'll send you a secure magic link to sign in. No password needed.
+        We&apos;ll send you a secure magic link to sign in. No password needed.
       </p>
     </form>
   );

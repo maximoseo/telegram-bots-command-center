@@ -9,7 +9,7 @@ export function createServerSupabaseClient() {
     throw new Error('Missing Supabase environment variables for server client');
   }
 
-  return createClient<Database>(url, serviceRoleKey, {
+  return createClient(url, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 }
