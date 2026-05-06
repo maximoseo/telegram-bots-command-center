@@ -1,6 +1,8 @@
 import { Shell } from '@/components/Shell';
 import { conversations } from '@/lib/mock-data';
 
+export const dynamic = 'force-dynamic';
+
 export default function ConversationsPage() {
   return (
     <Shell>

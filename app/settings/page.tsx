@@ -1,5 +1,7 @@
 import { Shell } from '@/components/Shell';
 
+export const dynamic = 'force-dynamic';
+
 const checks = [
   ['Supabase URL', Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)],
   ['Supabase anon key', Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)],

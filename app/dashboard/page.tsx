@@ -9,6 +9,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { Bot, MessageSquare, BarChart3 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();

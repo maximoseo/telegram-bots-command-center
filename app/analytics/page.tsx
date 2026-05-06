@@ -1,6 +1,8 @@
 import { Shell } from '@/components/Shell';
 import { usage } from '@/lib/mock-data';
 
+export const dynamic = 'force-dynamic';
+
 export default function AnalyticsPage() {
   const max = Math.max(...usage.map((item) => item.messages));
   return (
