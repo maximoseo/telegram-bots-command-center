@@ -1,280 +1,362 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import ReactFlow, {
+  Node,
+  Edge,
+  addEdge,
+  Background,
+  Controls,
+  MiniMap,
+  Connection,
+  useNodesState,
+  useEdgesState,
+  NodeProps,
+  Handle,
+  Position,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import { Plus, Settings, Trash2, Play } from 'lucide-react';
 
-interface Stage {
+interface Bot {
+  id: string;
   name: string;
-  description: string;
-  bot_id: string;
-  task_prompt: string;
-  file_scope: string[];
-  depends_on: number[]; // indexes of dependent stages
+  description: string | null;
+  color: string;
 }
 
 interface PipelineBuilderProps {
-  bots: Array<{ id: string; name: string; username: string }>;
-  onSubmit: (pipeline: {
-    name: string;
-    description: string;
-    repo_url: string;
-    branch: string;
-    stages: Stage[];
-    config: Record<string, unknown>;
-  }) => void;
+  bots: Bot[];
+  onSubmit: (pipeline: any) => void;
 }
 
+interface StageNodeData {
+  label: string;
+  botId: string | null;
+  botName: string;
+  botColor: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  taskPrompt: string;
+  fileScope: string[];
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+// Custom Stage Node Component
+function StageNode({ data, id }: NodeProps<StageNodeData>) {
+  const getStatusColor = () => {
+    switch (data.status) {
+      case 'running': return 'border-cyan-500 bg-cyan-500/10';
+      case 'completed': return 'border-green-500 bg-green-500/10';
+      case 'failed': return 'border-red-500 bg-red-500/10';
+      default: return 'border-zinc-700 bg-zinc-800/50';
+    }
+  };
+
+  return (
+    <div className={`px-4 py-3 rounded-lg border-2 ${getStatusColor()} backdrop-blur-sm min-w-[200px] transition-all`}>
+      <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-cyan-500" />
+      
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div 
+            className="w-3 h-3 rounded-full" 
+            style={{ backgroundColor: data.botColor }}
+          />
+          <span className="text-sm font-semibold text-white">{data.label}</span>
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => data.onEdit(id)}
+            className="p-1 hover:bg-zinc-700 rounded transition-colors"
+          >
+            <Settings className="w-3 h-3 text-zinc-400" />
+          </button>
+          <button
+            onClick={() => data.onDelete(id)}
+            className="p-1 hover:bg-red-900/30 rounded transition-colors"
+          >
+            <Trash2 className="w-3 h-3 text-red-400" />
+          </button>
+        </div>
+      </div>
+      
+      <div className="text-xs text-zinc-400 mb-1">{data.botName}</div>
+      
+      {data.status === 'running' && (
+        <div className="mt-2 h-1 bg-zinc-700 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-cyan-500 transition-all duration-300 animate-pulse"
+            style={{ width: `${data.progress}%` }}
+          />
+        </div>
+      )}
+      
+      <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-purple-500" />
+    </div>
+  );
+}
+
+const nodeTypes = {
+  stageNode: StageNode,
+};
+
 export function PipelineBuilder({ bots, onSubmit }: PipelineBuilderProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [pipelineName, setPipelineName] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [autoMerge, setAutoMerge] = useState(true);
-  const [conflictStrategy, setConflictStrategy] = useState<'pause' | 'keep_latest' | 'ai_merge'>('pause');
-  const [autoPr, setAutoPr] = useState(false);
-  const [timeout, setTimeout] = useState(30);
+  const [editingNode, setEditingNode] = useState<string | null>(null);
+  const [nodeConfig, setNodeConfig] = useState({
+    name: '',
+    botId: '',
+    taskPrompt: '',
+    fileScope: '',
+  });
+
+  const onConnect = useCallback(
+    (params: Connection) => setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: '#06b6d4' } }, eds)),
+    [setEdges]
+  );
 
   const addStage = () => {
-    setStages([...stages, {
-      name: '',
-      description: '',
-      bot_id: '',
-      task_prompt: '',
-      file_scope: [],
-      depends_on: [],
-    }]);
+    const newNode: Node<StageNodeData> = {
+      id: `stage-${Date.now()}`,
+      type: 'stageNode',
+      position: { x: Math.random() * 400 + 100, y: nodes.length * 150 + 100 },
+      data: {
+        label: 'New Stage',
+        botId: null,
+        botName: 'No Bot',
+        botColor: '#71717a',
+        status: 'pending',
+        progress: 0,
+        taskPrompt: '',
+        fileScope: [],
+        onEdit: (id) => {
+          const node = nodes.find(n => n.id === id);
+          if (node) {
+            setEditingNode(id);
+            setNodeConfig({
+              name: node.data.label,
+              botId: node.data.botId || '',
+              taskPrompt: node.data.taskPrompt,
+              fileScope: node.data.fileScope.join(', '),
+            });
+          }
+        },
+        onDelete: (id) => {
+          setNodes((nds) => nds.filter((n) => n.id !== id));
+          setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+        },
+      },
+    };
+    setNodes((nds) => [...nds, newNode]);
   };
 
-  const updateStage = (index: number, updates: Partial<Stage>) => {
-    setStages(stages.map((s, i) => i === index ? { ...s, ...updates } : s));
-  };
-
-  const removeStage = (index: number) => {
-    setStages(stages.filter((_, i) => i !== index));
+  const saveNodeConfig = () => {
+    if (!editingNode) return;
+    
+    const selectedBot = bots.find(b => b.id === nodeConfig.botId);
+    
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === editingNode
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                label: nodeConfig.name || 'Unnamed Stage',
+                botId: nodeConfig.botId,
+                botName: selectedBot?.name || 'No Bot',
+                botColor: selectedBot?.color || '#71717a',
+                taskPrompt: nodeConfig.taskPrompt,
+                fileScope: nodeConfig.fileScope.split(',').map(s => s.trim()).filter(Boolean),
+              },
+            }
+          : node
+      )
+    );
+    setEditingNode(null);
+    setNodeConfig({ name: '', botId: '', taskPrompt: '', fileScope: '' });
   };
 
   const handleSubmit = () => {
-    if (!name || !repoUrl || stages.length === 0) return;
-    
+    if (!pipelineName || !repoUrl || nodes.length === 0) {
+      alert('Please provide pipeline name, repo URL, and at least one stage');
+      return;
+    }
+
+    // Build dependency graph from edges
+    const dependencyMap: Record<string, string[]> = {};
+    edges.forEach(edge => {
+      if (!dependencyMap[edge.target]) {
+        dependencyMap[edge.target] = [];
+      }
+      dependencyMap[edge.target].push(edge.source);
+    });
+
+    const stages = nodes.map((node, idx) => ({
+      name: node.data.label,
+      order_index: idx,
+      bot_id: node.data.botId,
+      depends_on: dependencyMap[node.id] || [],
+      task_prompt: node.data.taskPrompt,
+      file_scope: node.data.fileScope,
+    }));
+
     onSubmit({
-      name,
-      description,
+      name: pipelineName,
       repo_url: repoUrl,
       branch,
-      stages: stages.map((s, i) => ({ ...s, order_index: i })) as any,
+      stages,
       config: {
-        timeout_minutes: timeout,
-        auto_merge: autoMerge,
-        conflict_strategy: conflictStrategy,
-        auto_pr: autoPr,
+        timeout_minutes: 30,
+        auto_merge: true,
+        conflict_strategy: 'pause',
+        auto_pr: false,
       },
     });
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-zinc-950 text-white">
-      <h1 className="text-2xl font-bold mb-6">New Pipeline</h1>
-
-      {/* Basic Info */}
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-5 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Pipeline Info</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1">Name *</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Build New Dashboard Feature"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1">Branch</label>
-            <input
-              type="text"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="feature/new-feature"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm text-zinc-400 mb-1">Repository URL *</label>
-            <input
-              type="text"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/user/repo"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm text-zinc-400 mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What this pipeline does..."
-              rows={2}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 resize-none"
-            />
-          </div>
+    <div className="h-screen flex flex-col bg-zinc-950">
+      {/* Header */}
+      <div className="bg-zinc-900 border-b border-zinc-800 p-4">
+        <div className="grid grid-cols-3 gap-4 mb-3">
+          <input
+            type="text"
+            value={pipelineName}
+            onChange={(e) => setPipelineName(e.target.value)}
+            placeholder="Pipeline Name"
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+          />
+          <input
+            type="text"
+            value={repoUrl}
+            onChange={(e) => setRepoUrl(e.target.value)}
+            placeholder="Repository URL"
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+          />
+          <input
+            type="text"
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+            placeholder="Branch"
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+          />
         </div>
-      </div>
-
-      {/* Stages */}
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-5 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Stages</h2>
+        <div className="flex gap-2">
           <button
             onClick={addStage}
-            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-medium transition-colors"
           >
-            + Add Stage
+            <Plus className="w-4 h-4" />
+            Add Stage
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-medium transition-colors ml-auto"
+          >
+            <Play className="w-4 h-4" />
+            Create Pipeline
           </button>
         </div>
+      </div>
 
-        {stages.length === 0 ? (
-          <p className="text-zinc-500 text-sm text-center py-8">
-            No stages yet. Add stages to define your pipeline workflow.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {stages.map((stage, index) => (
-              <div key={index} className="bg-zinc-800/50 rounded-lg border border-zinc-700/50 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-cyan-400">Stage {index + 1}</span>
-                  <button
-                    onClick={() => removeStage(index)}
-                    className="text-zinc-500 hover:text-red-400 text-sm"
-                  >
-                    ✕ Remove
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-zinc-500 mb-1">Stage Name</label>
-                    <input
-                      type="text"
-                      value={stage.name}
-                      onChange={(e) => updateStage(index, { name: e.target.value })}
-                      placeholder="Frontend Components"
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-zinc-500 mb-1">Assign Bot</label>
-                    <select
-                      value={stage.bot_id}
-                      onChange={(e) => updateStage(index, { bot_id: e.target.value })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500"
-                    >
-                      <option value="">Select bot...</option>
-                      {bots.map(bot => (
-                        <option key={bot.id} value={bot.id}>🤖 {bot.name} (@{bot.username})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs text-zinc-500 mb-1">Task Prompt</label>
-                    <textarea
-                      value={stage.task_prompt}
-                      onChange={(e) => updateStage(index, { task_prompt: e.target.value })}
-                      placeholder="Build the header component with navigation..."
-                      rows={2}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500 resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-zinc-500 mb-1">File Scope (comma separated)</label>
-                    <input
-                      type="text"
-                      value={stage.file_scope.join(', ')}
-                      onChange={(e) => updateStage(index, { file_scope: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                      placeholder="src/components/**, src/styles/**"
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-zinc-500 mb-1">Depends On (stage numbers)</label>
-                    <input
-                      type="text"
-                      value={stage.depends_on.map(d => d + 1).join(', ')}
-                      onChange={(e) => updateStage(index, { 
-                        depends_on: e.target.value.split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n) && n >= 0 && n < stages.length && n !== index) 
-                      })}
-                      placeholder="1, 2"
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                </div>
+      {/* React Flow Canvas */}
+      <div className="flex-1 relative">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          fitView
+          className="bg-zinc-950"
+        >
+          <Background color="#27272a" gap={16} />
+          <Controls className="bg-zinc-800 border-zinc-700" />
+          <MiniMap className="bg-zinc-900 border-zinc-700" nodeColor={(node) => {
+            const data = node.data as StageNodeData;
+            return data.botColor;
+          }} />
+        </ReactFlow>
+      </div>
+
+      {/* Edit Modal */}
+      {editingNode && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-white mb-4">Configure Stage</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Stage Name</label>
+                <input
+                  type="text"
+                  value={nodeConfig.name}
+                  onChange={(e) => setNodeConfig({ ...nodeConfig, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+                />
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* Visual Pipeline Flow */}
-        {stages.length > 1 && (
-          <div className="mt-4 p-3 bg-zinc-800/30 rounded-lg">
-            <p className="text-xs text-zinc-500 mb-2">Pipeline Flow:</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              {stages.map((stage, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="px-2 py-1 bg-cyan-900/30 border border-cyan-800/50 rounded text-xs text-cyan-300">
-                    {stage.name || `Stage ${i + 1}`}
-                  </span>
-                  {i < stages.length - 1 && <span className="text-zinc-600">→</span>}
-                </div>
-              ))}
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Bot</label>
+                <select
+                  value={nodeConfig.botId}
+                  onChange={(e) => setNodeConfig({ ...nodeConfig, botId: e.target.value })}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="">Select Bot</option>
+                  {bots.map(bot => (
+                    <option key={bot.id} value={bot.id}>{bot.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">Task Prompt</label>
+                <textarea
+                  value={nodeConfig.taskPrompt}
+                  onChange={(e) => setNodeConfig({ ...nodeConfig, taskPrompt: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1">File Scope (comma-separated)</label>
+                <input
+                  type="text"
+                  value={nodeConfig.fileScope}
+                  onChange={(e) => setNodeConfig({ ...nodeConfig, fileScope: e.target.value })}
+                  placeholder="src/**, lib/**"
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setEditingNode(null)}
+                className="flex-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveNodeConfig}
+                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-medium transition-colors"
+              >
+                Save
+              </button>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Settings */}
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-5 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Settings</h2>
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={autoMerge} onChange={(e) => setAutoMerge(e.target.checked)}
-              className="rounded border-zinc-600 bg-zinc-800 text-cyan-500 focus:ring-cyan-500" />
-            <span className="text-sm text-zinc-300">Auto-merge when no conflicts</span>
-          </label>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={autoPr} onChange={(e) => setAutoPr(e.target.checked)}
-              className="rounded border-zinc-600 bg-zinc-800 text-cyan-500 focus:ring-cyan-500" />
-            <span className="text-sm text-zinc-300">Auto-create PR when all stages complete</span>
-          </label>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-zinc-400">On conflict:</span>
-            <select value={conflictStrategy} onChange={(e) => setConflictStrategy(e.target.value as any)}
-              className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500">
-              <option value="pause">Pause & notify me</option>
-              <option value="keep_latest">Keep latest commit</option>
-              <option value="ai_merge">AI auto-merge</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-zinc-400">Timeout per stage:</span>
-            <select value={timeout} onChange={(e) => setTimeout(Number(e.target.value))}
-              className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500">
-              <option value={15}>15 min</option>
-              <option value={30}>30 min</option>
-              <option value={60}>1 hour</option>
-              <option value={120}>2 hours</option>
-            </select>
-          </div>
         </div>
-      </div>
-
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={!name || !repoUrl || stages.length === 0}
-        className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed rounded-xl text-lg font-bold transition-all"
-      >
-        🚀 Create Pipeline
-      </button>
+      )}
     </div>
   );
 }

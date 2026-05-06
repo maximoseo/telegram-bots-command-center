@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { WarRoom } from '@/components/orchestration/WarRoom';
 import { PipelineBuilder } from '@/components/orchestration/PipelineBuilder';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 interface Pipeline {
   id: string;
@@ -79,36 +81,41 @@ export default function OrchestrationPage() {
   // War Room view
   if (view === 'warroom' && selectedPipeline) {
     return (
-      <div>
-        <button
-          onClick={() => { setView('list'); setSelectedPipeline(null); }}
-          className="mb-4 px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors"
-        >
-          ← Back to Pipelines
-        </button>
-        <WarRoom pipelineId={selectedPipeline} />
-      </div>
+      <ErrorBoundary>
+        <div>
+          <button
+            onClick={() => { setView('list'); setSelectedPipeline(null); }}
+            className="mb-4 px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            ← Back to Pipelines
+          </button>
+          <WarRoom pipelineId={selectedPipeline} />
+        </div>
+      </ErrorBoundary>
     );
   }
 
   // Create view
   if (view === 'create') {
     return (
-      <div>
-        <button
-          onClick={() => setView('list')}
-          className="mb-4 px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors"
-        >
-          ← Back to Pipelines
-        </button>
-        <PipelineBuilder bots={bots} onSubmit={handleCreatePipeline} />
-      </div>
+      <ErrorBoundary>
+        <div>
+          <button
+            onClick={() => setView('list')}
+            className="mb-4 px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            ← Back to Pipelines
+          </button>
+          <PipelineBuilder bots={bots} onSubmit={handleCreatePipeline} />
+        </div>
+      </ErrorBoundary>
     );
   }
 
   // List view
   return (
-    <div className="p-6 bg-zinc-950 min-h-screen text-white">
+    <ErrorBoundary>
+      <div className="p-6 bg-zinc-950 min-h-screen text-white">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">🎯 Orchestration</h1>
@@ -124,7 +131,7 @@ export default function OrchestrationPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-pulse text-zinc-400">Loading...</div>
+          <LoadingSpinner size="lg" text="Loading pipelines..." />
         </div>
       ) : pipelines.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -172,6 +179,7 @@ export default function OrchestrationPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
