@@ -8,17 +8,17 @@ import {
 import { createClient } from '@/lib/supabase/client';
 
 interface Params {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // POST /api/pipelines/[id]/start - Start pipeline execution
 export async function POST(req: NextRequest, { params }: Params) {
   try {
+    const { id: pipelineId } = await params;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const pipelineId = params.id;
     const stages = await getStagesForPipeline(pipelineId);
 
     if (stages.length === 0) {

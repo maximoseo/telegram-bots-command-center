@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRecentEvents } from '@/lib/orchestration';
 
 interface Params {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // GET /api/pipelines/[id]/events - Server-Sent Events stream
 export async function GET(req: NextRequest, { params }: Params) {
-  const pipelineId = params.id;
+  const { id: pipelineId } = await params;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

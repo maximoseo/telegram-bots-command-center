@@ -196,14 +196,14 @@ export function WarRoom({ pipelineId }: WarRoomProps) {
                 <span>{getEventIcon(event.event_type)}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-zinc-300 truncate">
-                    {event.payload?.message || event.event_type}
+                    {String(event.payload?.message || event.event_type)}
                   </p>
-                  {event.payload?.file && (
-                    <p className="text-xs text-zinc-500 font-mono">{event.payload.file as string}</p>
+                  {(event.payload as Record<string, any>)?.file && (
+                    <p className="text-xs text-zinc-500 font-mono">{String(event.payload.file)}</p>
                   )}
-                  {event.payload?.files_changed && (
+                  {(event.payload as Record<string, any>)?.files_changed && (
                     <p className="text-xs text-zinc-500">
-                      +{event.payload.additions || 0} -{event.payload.deletions || 0} ({(event.payload.files_changed as string[])?.length} files)
+                      +{String(event.payload.additions || 0)} -{String(event.payload.deletions || 0)} ({(event.payload.files_changed as string[])?.length} files)
                     </p>
                   )}
                 </div>

@@ -12,24 +12,25 @@ import {
 import { createClient } from '@/lib/supabase/client';
 
 interface Params {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // GET /api/pipelines/[id] - Get pipeline details with stages, events, git activity
 export async function GET(req: NextRequest, { params }: Params) {
   try {
+    const { id } = await params;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const pipeline = await getPipeline(params.id);
+    const pipeline = await getPipeline(id);
     if (!pipeline) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const [stages, events, gitActivity, conflicts] = await Promise.all([
-      getStagesForPipeline(params.id),
-      getRecentEvents(params.id, 100),
-      getGitActivity(params.id),
-      getPendingConflicts(params.id),
+      getStagesForPipeline(id),
+      getRecentEvents(id, 100),
+      getGitActivity(id),
+      getPendingConflicts(id),
     ]);
 
     return NextResponse.json({
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 // PATCH /api/pipelines/[id] - Update pipeline (status, config)
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+    const { id } = await params;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -57,9 +59,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { status } = body;
 
     if (status) {
-      const pipeline = await updatePipelineStatus(params.id, status);
+      const pipeline = await updatePipelineStatus(id, status);
       await logEvent({
-        pipeline_id: params.id,
+        pipeline_id: id,
         event_type: status === 'running' ? 'pipeline_start' : 
                    status === 'completed' ? 'pipeline_complete' :
                    status === 'failed' ? 'pipeline_fail' :
@@ -78,11 +80,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 // DELETE /api/pipelines/[id] - Delete pipeline
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+    const { id } = await params;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    await deletePipeline(params.id);
+    await deletePipeline(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

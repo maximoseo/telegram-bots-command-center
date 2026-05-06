@@ -3,12 +3,13 @@ import { resolveConflict, getPendingConflicts, logEvent, updatePipelineStatus } 
 import { createClient } from '@/lib/supabase/client';
 
 interface Params {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // POST /api/pipelines/[id]/resolve - Resolve a conflict
 export async function POST(req: NextRequest, { params }: Params) {
   try {
+    const { id } = await params;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,17 +24,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     await resolveConflict(conflict_id, resolution, resolved_content);
 
     await logEvent({
-      pipeline_id: params.id,
+      pipeline_id: id,
       event_type: 'merge_ok',
       payload: { conflict_id, resolution },
     });
 
     // Check if all conflicts resolved — resume pipeline if paused
-    const remaining = await getPendingConflicts(params.id);
+    const remaining = await getPendingConflicts(id);
     if (remaining.length === 0) {
-      await updatePipelineStatus(params.id, 'running');
+      await updatePipelineStatus(id, 'running');
       await logEvent({
-        pipeline_id: params.id,
+        pipeline_id: id,
         event_type: 'info',
         payload: { message: 'All conflicts resolved, pipeline resumed' },
       });
