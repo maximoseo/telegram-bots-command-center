@@ -18,7 +18,7 @@ export default function LoginPage() {
           </div>
           
           <h2 className="text-3xl font-bold text-sidebar-fg-active mb-4">
-            Manage your bots<br />with confidence
+            Manage your bots<br />from a secure console
           </h2>
           <p className="text-sidebar-fg text-lg leading-relaxed mb-8">
             Observability, analytics, and control for your Telegram bot operations.
@@ -72,7 +72,7 @@ export default function LoginPage() {
               </div>
             </div>
             <h2 className="text-2xl font-bold text-text mb-2">Welcome back</h2>
-            <p className="text-text-muted">Sign in to access your command center</p>
+            <p className="text-text-muted">Sign in with your username and password</p>
           </div>
           
           <LoginForm />
