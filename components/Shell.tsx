@@ -1,5 +1,19 @@
 import Link from 'next/link';
-import { BarChart3, Bot, Gauge, MessageSquare, Settings, ShieldCheck } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
+import { 
+  BarChart3, 
+  Bot, 
+  Gauge, 
+  MessageSquare, 
+  Settings, 
+  ShieldCheck,
+  Menu,
+  X,
+  Zap
+} from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
+import { cn } from '@/lib/utils';
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: Gauge },
@@ -10,30 +24,105 @@ const nav = [
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
-    <div className="min-h-screen lg:flex">
-      <aside className="border-b border-slate-200 bg-white/82 backdrop-blur lg:sticky lg:top-0 lg:h-screen lg:w-72 lg:border-b-0 lg:border-r">
-        <div className="flex items-center gap-3 px-5 py-5">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-soft"><Bot size={22} /></div>
-          <div>
-            <p className="text-sm font-semibold text-slate-500">Telegram Bots</p>
-            <h1 className="text-lg font-black tracking-tight">Command Center</h1>
+    <div className="min-h-screen flex">
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={cn(
+        "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-sidebar-bg border-r border-line transform transition-transform duration-300 ease-in-out lg:transform-none",
+        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
+        {/* Header */}
+        <div className="flex h-16 items-center gap-3 px-5 border-b border-sidebar-accent">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-text-inverse shadow-md">
+            <Zap size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-sidebar-fg truncate">Telegram Bots</p>
+            <h1 className="text-sm font-bold text-sidebar-fg-active tracking-tight">Command Center</h1>
+          </div>
+          <button 
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden p-2 rounded-lg text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-accent transition"
+            aria-label="Close navigation"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="p-3 space-y-1">
+          {nav.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            return (
+              <Link 
+                key={item.href} 
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  isActive 
+                    ? "bg-sidebar-accent text-sidebar-fg-active" 
+                    : "text-sidebar-fg hover:text-sidebar-fg-active hover:bg-sidebar-accent/50"
+                )}
+              >
+                <item.icon size={18} className={isActive ? "text-primary" : ""} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Info box */}
+        <div className="mx-3 mb-4 rounded-lg border border-line bg-bg-sunken p-3 text-xs">
+          <div className="mb-1.5 flex items-center gap-2 font-semibold text-text">
+            <ShieldCheck size={14} className="text-success" /> 
+            Safe first slice
+          </div>
+          <p className="text-text-muted leading-relaxed">
+            Read-only dashboard. No bot tokens or webhooks.
+          </p>
+        </div>
+
+        {/* Bottom section */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-sidebar-accent">
+          <div className="flex items-center justify-between">
+            <ThemeToggle className="scale-90 origin-left" />
           </div>
         </div>
-        <nav className="flex gap-2 overflow-x-auto px-4 pb-4 lg:block lg:space-y-1 lg:overflow-visible">
-          {nav.map((item) => (
-            <Link key={item.href} href={item.href} className="flex min-w-fit items-center gap-3 rounded-2xl px-4 py-3 text-sm font700 text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
-              <item.icon size={18} />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="mx-4 mb-5 hidden rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-950 lg:block">
-          <div className="mb-2 flex items-center gap-2 font-bold"><ShieldCheck size={16} /> Safe first slice</div>
-          Read-only dashboard shell. No bot tokens, no webhooks, no lifecycle controls.
-        </div>
       </aside>
-      <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0">
+        {/* Mobile header */}
+        <header className="lg:hidden sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-bg-elevated/80 backdrop-blur-md px-4">
+          <button 
+            onClick={() => setMobileOpen(true)}
+            className="p-2 rounded-lg text-text-muted hover:text-text hover:bg-bg-sunken transition"
+            aria-label="Open navigation"
+          >
+            <Menu size={20} />
+          </button>
+          <h1 className="text-sm font-semibold text-text truncate">
+            {nav.find(n => pathname === n.href || pathname.startsWith(n.href + '/'))?.label || 'Command Center'}
+          </h1>
+        </header>
+
+        <main className="px-4 py-6 sm:px-6 lg:px-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
