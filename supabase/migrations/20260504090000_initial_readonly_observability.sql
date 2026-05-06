@@ -96,6 +96,13 @@ alter table public.messages enable row level security;
 alter table public.llm_calls enable row level security;
 alter table public.token_usage_daily enable row level security;
 
+drop policy if exists "profiles_select_own" on public.profiles;
+drop policy if exists "bots_select_own" on public.bots;
+drop policy if exists "conversations_select_own" on public.conversations;
+drop policy if exists "messages_select_own" on public.messages;
+drop policy if exists "llm_calls_select_own" on public.llm_calls;
+drop policy if exists "token_usage_daily_select_own" on public.token_usage_daily;
+
 create policy "profiles_select_own" on public.profiles for select to authenticated using (id = auth.uid());
 create policy "bots_select_own" on public.bots for select to authenticated using (owner_id = auth.uid());
 create policy "conversations_select_own" on public.conversations for select to authenticated using (owner_id = auth.uid());
