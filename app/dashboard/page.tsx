@@ -5,16 +5,40 @@ import { DataNotice, EmptyState } from '@/components/DataNotice';
 import { DashboardSkeleton } from '@/components/Skeleton';
 import { getDashboardMetrics, getBots } from '@/lib/supabase/queries';
 import type { Bot as BotType } from '@/types/prompt';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { Bot, MessageSquare, BarChart3 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
-  const supabase = createServerSupabaseClient();
+async function getAuthenticatedUser() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll() {
+        // Server components cannot write cookies. Middleware and auth routes handle refresh/write operations.
+      }
+    }
+  });
+
   const { data: { user } } = await supabase.auth.getUser();
-  
+  return user;
+}
+
+export default async function DashboardPage() {
+  const user = await getAuthenticatedUser();
+
   if (!user) {
     redirect('/login');
   }
