@@ -1,24 +1,33 @@
--- Real Telegram bot connection foundation: encrypted token metadata + webhook state.
+-- Real Telegram bot connection foundation.
+-- Uses a separate table so we do not need to ALTER the existing owner-created bots table.
 -- Raw Telegram bot tokens must never be exposed to the browser or committed.
 
-alter table public.bots
-  add column if not exists telegram_bot_id bigint,
-  add column if not exists telegram_first_name text,
-  add column if not exists telegram_can_join_groups boolean,
-  add column if not exists telegram_can_read_all_group_messages boolean,
-  add column if not exists telegram_supports_inline_queries boolean,
-  add column if not exists token_ciphertext text,
-  add column if not exists token_iv text,
-  add column if not exists token_auth_tag text,
-  add column if not exists token_hint text,
-  add column if not exists webhook_secret text,
-  add column if not exists webhook_url text,
-  add column if not exists connected_at timestamptz,
-  add column if not exists last_error text;
+create table if not exists public.bot_connections (
+  bot_id uuid primary key references public.bots(id) on delete cascade,
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  telegram_bot_id bigint,
+  telegram_first_name text,
+  telegram_can_join_groups boolean,
+  telegram_can_read_all_group_messages boolean,
+  telegram_supports_inline_queries boolean,
+  token_ciphertext text,
+  token_iv text,
+  token_auth_tag text,
+  token_hint text,
+  webhook_secret text,
+  webhook_url text,
+  connected_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(owner_id, telegram_bot_id)
+);
 
-create index if not exists bots_owner_telegram_id_idx on public.bots(owner_id, telegram_bot_id);
-create index if not exists bots_webhook_secret_idx on public.bots(webhook_secret) where webhook_secret is not null;
+create index if not exists bot_connections_owner_idx on public.bot_connections(owner_id);
+create index if not exists bot_connections_webhook_secret_idx on public.bot_connections(webhook_secret) where webhook_secret is not null;
 
--- Needed for webhook conversation upserts by Telegram chat.
-create unique index if not exists conversations_owner_bot_chat_uidx
-  on public.conversations(owner_id, bot_id, telegram_chat_id);
+alter table public.bot_connections enable row level security;
+
+drop policy if exists "bot_connections_select_own" on public.bot_connections;
+create policy "bot_connections_select_own" on public.bot_connections for select to authenticated using (owner_id = auth.uid());
+

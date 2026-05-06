@@ -19,12 +19,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ bot
   const secret = request.headers.get('x-telegram-bot-api-secret-token') || '';
 
   const { data: bot, error } = await supabase
-    .from('bots')
-    .select('id, owner_id, name, is_active, webhook_secret, token_ciphertext, token_iv, token_auth_tag')
-    .eq('id', botId)
+    .from('bot_connections')
+    .select('bot_id, owner_id, webhook_secret, token_ciphertext, token_iv, token_auth_tag, bots!inner(id, name, is_active)')
+    .eq('bot_id', botId)
     .single();
 
-  if (error || !bot || !bot.is_active || !bot.webhook_secret || secret !== bot.webhook_secret) {
+  const botRow = Array.isArray(bot?.bots) ? bot?.bots[0] : bot?.bots;
+  if (error || !bot || !botRow?.is_active || !bot.webhook_secret || secret !== bot.webhook_secret) {
     return NextResponse.json({ ok: false }, { status: 403 });
   }
 
@@ -42,31 +43,56 @@ export async function POST(request: Request, { params }: { params: Promise<{ bot
   await supabase
     .from('bots')
     .update({ status: 'online', last_heartbeat: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() })
-    .eq('id', bot.id);
+    .eq('id', bot.bot_id);
 
   if (!chatId) return NextResponse.json({ ok: true });
 
   const username = message?.from?.username || message?.chat?.username || null;
-  const { data: conversation } = await supabase
+  let conversationId: string | null = null;
+  const now = new Date().toISOString();
+  const { data: existingConversation } = await supabase
     .from('conversations')
-    .upsert({
-      owner_id: bot.owner_id,
-      bot_id: bot.id,
-      telegram_chat_id: chatId,
-      telegram_user_id: message?.from?.id || null,
-      username,
-      message_count: 1,
-      last_message_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'owner_id,bot_id,telegram_chat_id' })
-    .select('id')
-    .single();
+    .select('id, message_count')
+    .eq('owner_id', bot.owner_id)
+    .eq('bot_id', bot.bot_id)
+    .eq('telegram_chat_id', chatId)
+    .maybeSingle();
 
-  if (conversation?.id && text) {
+  if (existingConversation?.id) {
+    conversationId = existingConversation.id;
+    await supabase
+      .from('conversations')
+      .update({
+        telegram_user_id: message?.from?.id || null,
+        username,
+        message_count: (existingConversation.message_count || 0) + 1,
+        last_message_at: now,
+        updated_at: now
+      })
+      .eq('id', existingConversation.id);
+  } else {
+    const { data: insertedConversation } = await supabase
+      .from('conversations')
+      .insert({
+        owner_id: bot.owner_id,
+        bot_id: bot.bot_id,
+        telegram_chat_id: chatId,
+        telegram_user_id: message?.from?.id || null,
+        username,
+        message_count: 1,
+        last_message_at: now,
+        updated_at: now
+      })
+      .select('id')
+      .single();
+    conversationId = insertedConversation?.id || null;
+  }
+
+  if (conversationId && text) {
     await supabase.from('messages').insert({
       owner_id: bot.owner_id,
-      conversation_id: conversation.id,
-      bot_id: bot.id,
+      conversation_id: conversationId,
+      bot_id: bot.bot_id,
       direction: 'incoming',
       sender_type: 'user',
       content_type: 'text',
@@ -76,13 +102,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ bot
 
   try {
     const token = decryptSecret({ ciphertext: bot.token_ciphertext, iv: bot.token_iv, authTag: bot.token_auth_tag });
-    const reply = `✅ ${bot.name} is connected to TG Command Center. I received your message.`;
+    const reply = `✅ ${botRow.name} is connected to TG Command Center. I received your message.`;
     await sendTelegramMessage(token, chatId, reply);
-    if (conversation?.id) {
+    if (conversationId) {
       await supabase.from('messages').insert({
         owner_id: bot.owner_id,
-        conversation_id: conversation.id,
-        bot_id: bot.id,
+        conversation_id: conversationId,
+        bot_id: bot.bot_id,
         direction: 'outgoing',
         sender_type: 'bot',
         content_type: 'text',
@@ -90,7 +116,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bot
       });
     }
   } catch (sendError) {
-    await supabase.from('bots').update({ status: 'error', last_error: sendError instanceof Error ? sendError.message : 'Reply failed', updated_at: new Date().toISOString() }).eq('id', bot.id);
+    await supabase.from('bots').update({ status: 'error', last_error: sendError instanceof Error ? sendError.message : 'Reply failed', updated_at: new Date().toISOString() }).eq('id', bot.bot_id);
   }
 
   return NextResponse.json({ ok: true });

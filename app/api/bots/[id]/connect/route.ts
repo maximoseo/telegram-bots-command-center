@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: existing, error: fetchError } = await supabase
     .from('bots')
     .select('id, owner_id')
-    .eq('id', id)
+    .eq('bot_id', id)
     .eq('owner_id', user.id)
     .single();
 
@@ -36,10 +36,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const webhookUrl = `${APP_URL}/api/telegram/webhook/${id}`;
     await setTelegramWebhook(token, webhookUrl, webhookSecret);
 
-    const { data, error } = await supabase
-      .from('bots')
-      .update({
-        bot_username: botInfo.username ? `@${botInfo.username}` : null,
+    const now = new Date().toISOString();
+    const { error: connectionError } = await supabase
+      .from('bot_connections')
+      .upsert({
+        bot_id: id,
+        owner_id: user.id,
         telegram_bot_id: botInfo.id,
         telegram_first_name: botInfo.first_name,
         telegram_can_join_groups: botInfo.can_join_groups ?? null,
@@ -51,23 +53,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         token_hint: tokenHint(token),
         webhook_secret: webhookSecret,
         webhook_url: webhookUrl,
-        connected_at: new Date().toISOString(),
-        last_heartbeat: new Date().toISOString(),
+        connected_at: now,
         last_error: null,
+        updated_at: now
+      }, { onConflict: 'bot_id' });
+    if (connectionError) throw connectionError;
+
+    const { data, error } = await supabase
+      .from('bots')
+      .update({
+        bot_username: botInfo.username ? `@${botInfo.username}` : null,
+        last_heartbeat: now,
         status: 'online',
         is_active: true,
-        updated_at: new Date().toISOString()
+        updated_at: now
       })
       .eq('id', id)
       .eq('owner_id', user.id)
-      .select('id, name, bot_username, status, is_active, telegram_bot_id, telegram_first_name, token_hint, webhook_url, connected_at')
+      .select('id, name, bot_username, status, is_active, last_heartbeat')
       .single();
 
     if (error) throw error;
-    return NextResponse.json({ bot: data, telegram: { id: botInfo.id, username: botInfo.username, first_name: botInfo.first_name } });
+    return NextResponse.json({ bot: { ...data, telegram_bot_id: botInfo.id, telegram_first_name: botInfo.first_name, token_hint: tokenHint(token), webhook_url: webhookUrl, connected_at: now }, telegram: { id: botInfo.id, username: botInfo.username, first_name: botInfo.first_name } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Telegram connection failed.';
-    await supabase.from('bots').update({ status: 'error', is_active: false, last_error: message, updated_at: new Date().toISOString() }).eq('id', id).eq('owner_id', user.id);
+    await supabase.from('bots').update({ status: 'error', is_active: false, updated_at: new Date().toISOString() }).eq('id', id).eq('owner_id', user.id);
+    await supabase.from('bot_connections').upsert({ bot_id: id, owner_id: user.id, last_error: message, updated_at: new Date().toISOString() }, { onConflict: 'bot_id' });
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
@@ -79,13 +90,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   const supabase = createServerSupabaseClient();
   const { data: bot, error: fetchError } = await supabase
-    .from('bots')
-    .select('id, token_ciphertext, token_iv, token_auth_tag')
+    .from('bot_connections')
+    .select('bot_id, token_ciphertext, token_iv, token_auth_tag')
     .eq('id', id)
     .eq('owner_id', user.id)
     .single();
 
-  if (fetchError || !bot) return NextResponse.json({ error: 'Bot not found.' }, { status: 404 });
+  if (fetchError || !bot) return NextResponse.json({ error: 'Bot connection not found.' }, { status: 404 });
 
   // Token decryption is intentionally optional during disconnect; DB state is always revoked.
   try {
@@ -96,20 +107,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     // Continue local revoke even if Telegram webhook deletion cannot be performed.
   }
 
+  await supabase.from('bot_connections').delete().eq('bot_id', id).eq('owner_id', user.id);
+
   const { data, error } = await supabase
     .from('bots')
-    .update({
-      status: 'offline',
-      is_active: false,
-      token_ciphertext: null,
-      token_iv: null,
-      token_auth_tag: null,
-      token_hint: null,
-      webhook_secret: null,
-      webhook_url: null,
-      connected_at: null,
-      updated_at: new Date().toISOString()
-    })
+    .update({ status: 'offline', is_active: false, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('owner_id', user.id)
     .select('id, name, bot_username, status, is_active')
