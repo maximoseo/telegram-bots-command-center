@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: existing, error: fetchError } = await supabase
     .from('bots')
     .select('id, owner_id')
-    .eq('bot_id', id)
+    .eq('id', id)
     .eq('owner_id', user.id)
     .single();
 
