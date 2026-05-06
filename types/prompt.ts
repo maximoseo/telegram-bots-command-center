@@ -9,6 +9,15 @@ export interface Bot {
   status: 'online' | 'offline' | 'error' | 'paused';
   last_heartbeat: string | null;
   is_active: boolean;
+  telegram_bot_id?: number | null;
+  telegram_first_name?: string | null;
+  telegram_can_join_groups?: boolean | null;
+  telegram_can_read_all_group_messages?: boolean | null;
+  telegram_supports_inline_queries?: boolean | null;
+  token_hint?: string | null;
+  webhook_url?: string | null;
+  connected_at?: string | null;
+  last_error?: string | null;
   created_at: string;
   updated_at: string;
 }
