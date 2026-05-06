@@ -1,9 +1,10 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getAuthenticatedServerUser } from '@/lib/supabase/auth-server';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
+  const user = await getAuthenticatedServerUser();
   const supabase = createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,8 +24,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const user = await getAuthenticatedServerUser();
   const supabase = createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
